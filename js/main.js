@@ -93,6 +93,64 @@
     }
   }
 
+  /* ---------- Approccio: filo "fine line" disegnato con lo scroll ---------- */
+  var fl = document.querySelector('[data-fineline]');
+  if (fl) {
+    var svg = fl.querySelector('.fineline-svg');
+    var ghost = fl.querySelector('.fl-ghost');
+    var draw = fl.querySelector('.fl-draw');
+    var nodes = Array.prototype.slice.call(fl.querySelectorAll('.fl-node'));
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var len = 0, stops = [];
+
+    var build = function () {
+      var box = svg.getBoundingClientRect();
+      var W = box.width, H = box.height;
+      if (!W || !H) return;
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      var cx = W / 2;
+      var A = Math.min(W / 2 - 4, 64);
+      var ys = nodes.map(function (n) {
+        var r = n.getBoundingClientRect();
+        return r.top + r.height / 2 - box.top;
+      });
+      var pts = [0].concat(ys, [H]);
+      var d = 'M' + cx + ' 0';
+      for (var i = 1; i < pts.length; i++) {
+        var ya = pts[i - 1], yb = pts[i], h = yb - ya, ym = ya + h / 2;
+        var s = (i % 2 ? 1 : -1) * A;
+        if (i === 1 || i === pts.length - 1) s *= .4;
+        d += ' C' + cx + ' ' + (ya + h * .3) + ' ' + (cx + s) + ' ' + (ym - h * .22) + ' ' + (cx + s) + ' ' + ym;
+        d += ' C' + (cx + s) + ' ' + (ym + h * .22) + ' ' + cx + ' ' + (yb - h * .3) + ' ' + cx + ' ' + yb;
+      }
+      ghost.setAttribute('d', d);
+      draw.setAttribute('d', d);
+      len = draw.getTotalLength();
+      draw.style.strokeDasharray = len;
+      stops = ys.map(function (y) { return y / H; });
+      update();
+    };
+
+    var update = function () {
+      if (!len) return;
+      var r = fl.getBoundingClientRect();
+      var vh = window.innerHeight;
+      var p = reduce ? 1 : Math.min(1, Math.max(0, (vh * 0.62 - r.top) / r.height));
+      draw.style.strokeDashoffset = len * (1 - p);
+      nodes.forEach(function (n, i) { n.classList.toggle('is-on', p >= stops[i] - 0.005); });
+    };
+
+    var raf = 0;
+    window.addEventListener('scroll', function () {
+      if (raf) return;
+      raf = requestAnimationFrame(function () { raf = 0; update(); });
+    }, { passive: true });
+    window.addEventListener('resize', build);
+    window.addEventListener('load', build);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(build);
+    build();
+  }
+
   /* ---------- FAQ accordion (tutte chiuse all'avvio) ---------- */
   document.querySelectorAll('[data-accordion] .faq-q button').forEach(function (btn) {
     var panel = document.getElementById(btn.getAttribute('aria-controls'));
